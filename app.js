@@ -1,14 +1,20 @@
+const mat4 = glMatrix.mat4
+
 const vertex_shader_source = `
 precision mediump float;
 
-attribute vec2 vertPosition;
+attribute vec3 vertPosition;
 attribute vec3 vertColor;
 
 varying vec3 fragColor;
 
+uniform mat4 mWorld;
+uniform mat4 mView;
+uniform mat4 mProj;
+
 void main () {
     fragColor = vertColor;
-    gl_Position = vec4(vertPosition, 0.0, 1.0);
+    gl_Position = mProj * mView * mWorld * vec4(vertPosition, 1.0);
 }`
 
 const fragment_shader_source = `
@@ -53,9 +59,9 @@ function init_demo() {
     check_program(gl, program)
 
     const triangle_vertices = [
-        0.0, 0.5, 1.0, 1.0, 0.0,
-        -0.5, -0.5, 0.7, 0.0, 1.0,
-        0.5, -0.5, 0.1, 1.0, 0.6
+        0.0, 0.5, 0.0, 1.0, 1.0, 0.0,
+        -0.5, -0.5, 0.0, 0.7, 0.0, 1.0,
+        0.5, -0.5, 0.0, 0.1, 1.0, 0.6
     ]
 
     const triangle_vertex_buffer = gl.createBuffer()
@@ -64,12 +70,45 @@ function init_demo() {
 
     const position_attrib_location = gl.getAttribLocation(program, 'vertPosition')
     const color_attrib_location = gl.getAttribLocation(program, 'vertColor')
-    gl.vertexAttribPointer(position_attrib_location, 2, gl.FLOAT, gl.FALSE, 5 * Float32Array.BYTES_PER_ELEMENT, 0)
-    gl.vertexAttribPointer(color_attrib_location, 3, gl.FLOAT, gl.FALSE, 5 * Float32Array.BYTES_PER_ELEMENT, 2 * Float32Array.BYTES_PER_ELEMENT)
+    gl.vertexAttribPointer(position_attrib_location, 3, gl.FLOAT, gl.FALSE, 6 * Float32Array.BYTES_PER_ELEMENT, 0)
+    gl.vertexAttribPointer(color_attrib_location, 3, gl.FLOAT, gl.FALSE, 6 * Float32Array.BYTES_PER_ELEMENT, 3 * Float32Array.BYTES_PER_ELEMENT)
     gl.enableVertexAttribArray(position_attrib_location)
     gl.enableVertexAttribArray(color_attrib_location)
+
     gl.useProgram(program)
-    gl.drawArrays(gl.TRIANGLES, 0, 3)
+
+    const mat_world_uniform_location = gl.getUniformLocation(program, 'mWorld')
+    const mat_view_uniform_location = gl.getUniformLocation(program, 'mView')
+    const mat_proj_uniform_location = gl.getUniformLocation(program, 'mProj')
+
+    let world_matrix = new Float32Array(16)
+    let view_matrix = new Float32Array(16)
+    let proj_matrix = new Float32Array(16)
+
+    mat4.identity(world_matrix)
+    mat4.lookAt(view_matrix, [0, 0, -5], [0, 0, 0], [0, 1, 0])
+    mat4.perspective(proj_matrix, glMatrix.glMatrix.toRadian(45), canvas.width / canvas.height, 0.1, 1000.0)
+
+    gl.uniformMatrix4fv(mat_world_uniform_location, gl.FALSE, world_matrix)
+    gl.uniformMatrix4fv(mat_view_uniform_location, gl.FALSE, view_matrix)
+    gl.uniformMatrix4fv(mat_proj_uniform_location, gl.FALSE, proj_matrix)
+    
+    let identity_matrix = new Float32Array(16)
+    mat4.identity(identity_matrix)
+    let angle = 0
+
+    function loop() {
+        angle = performance.now() / 1000 / 6 * 2 * Math.PI
+        mat4.rotate(world_matrix, identity_matrix, angle, [0, 1, 0])
+        gl.uniformMatrix4fv(mat_world_uniform_location, gl.FALSE, world_matrix)
+
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+        gl.drawArrays(gl.TRIANGLES, 0, 3)
+
+        requestAnimationFrame(loop)
+    }
+
+    requestAnimationFrame(loop)
 
     console.log("init demo")
 }
